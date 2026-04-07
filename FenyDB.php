@@ -55,10 +55,10 @@ class FenyDB
         // write the object structure columns in json file called structure.json
         $structurePath = $this->path . '/' . $tableName . '/structure.json';
         if (!is_file($structurePath)) {
-            file_put_contents($structurePath, json_encode(array() . array('is_indexed' => $is_indexed)));
+            file_put_contents($structurePath, json_encode(array()));
         }
         $structure = json_decode(file_get_contents($structurePath), true);
-        $structure[$columnName] = $type;
+        $structure[$columnName] = array('type' => $type, 'is_indexed' => $is_indexed);
         file_put_contents($structurePath, json_encode($structure));
     }
 
@@ -76,11 +76,11 @@ class FenyDB
         $data['created_at'] = date('Y-m-d H:i:s');
         $data['updated_at'] = date('Y-m-d H:i:s');
         file_put_contents($tablePath . '/' . $data['id'] . '.json', json_encode($data));
-        foreach ($structure as $key => $value) {
-            if (!in_array($value, $this->non_indexed_types) && $structure[$key]['is_indexed']) {
+        foreach ($structure as $key => $columnDef) {
+            if (!in_array($columnDef['type'], $this->non_indexed_types) && $columnDef['is_indexed']) {
                 $columnPath = $indexTablePath . '/' . $key . '.json';
                 if (!is_file($columnPath)) {
-                    file_put_contents($columnPath, json_encode(array('type' => $value, 'index' => array())));
+                    file_put_contents($columnPath, json_encode(array('type' => $columnDef['type'], 'index' => array())));
                 }
                 $column = json_decode(file_get_contents($columnPath), true);
                 $column['index'][$data[$key]][] = $data['id'];
@@ -105,7 +105,7 @@ class FenyDB
 
         // if indexed update
         foreach ($oldData as $key => $value) {
-            if ($oldData[$key] != $data[$key] && $structure[$key]['is_indexed'] && !in_array($value, $this->non_indexed_types)) {
+            if (isset($structure[$key]) && $oldData[$key] != $data[$key] && $structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
                 $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
                 if (!is_file($indexPath)) {
                     continue;
