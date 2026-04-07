@@ -90,6 +90,55 @@ class FenyDB
         return $data['id'];
     }
 
+    public function update($tableName, $id, $data)
+    {
+        $tablePath = $this->path . '/' . $tableName;
+        $filePath = $tablePath . '/' . $id . '.json';
+        if (!is_file($filePath)) {
+            return false;
+        }
+        $data['id'] = (int) $id;
+        $data['updated_at'] = date('Y-m-d H:i:s');
+        $oldData = json_decode(file_get_contents($filePath), true);
+        file_put_contents($filePath, json_encode($data));
+
+        // if indexed update
+        foreach ($oldData as $key => $value) {
+            if ($oldData[$key] != $data[$key]) {
+                $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
+                if (!is_file($indexPath)) {
+                    continue;
+                }
+                $column = json_decode(file_get_contents($indexPath), true);
+                unset($column['index'][$oldData[$key]]);
+                $column['index'][$data[$key]][] = $data['id'];
+                file_put_contents($indexPath, json_encode($column));
+            }
+        }
+        return true;
+    }
+
+    public function delete($tableName, $id)
+    {
+        $tablePath = $this->path . '/' . $tableName;
+        $filePath = $tablePath . '/' . $id . '.json';
+        if (!is_file($filePath)) {
+            return false;
+        }
+        $data = json_decode(file_get_contents($filePath), true);
+        unlink($filePath);
+        foreach ($data as $key => $value) {
+            $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
+            if (!is_file($indexPath)) {
+                continue;
+            }
+            $column = json_decode(file_get_contents($indexPath), true);
+            unset($column['index'][$value]);
+            file_put_contents($indexPath, json_encode($column));
+        }
+        return true;
+    }
+
     public function find($tableName, $columnName, $value)
     {
         $tablePath = $this->path . '/' . $tableName . '/index';
