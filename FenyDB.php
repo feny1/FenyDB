@@ -82,9 +82,13 @@ class FenyDB
                 if (!is_file($columnPath)) {
                     file_put_contents($columnPath, json_encode(array('type' => $columnDef['type'], 'index' => array())));
                 }
-                $column = json_decode(file_get_contents($columnPath), true);
-                $column['index'][$data[$key]][] = $data['id'];
-                file_put_contents($columnPath, json_encode($column));
+                
+                $valueToIndex = $data[$key] ?? null;
+                if ($valueToIndex !== null) {
+                    $column = json_decode(file_get_contents($columnPath), true);
+                    $column['index'][$valueToIndex][] = $data['id'];
+                    file_put_contents($columnPath, json_encode($column));
+                }
             }
         }
         return $data['id'];
