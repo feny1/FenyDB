@@ -3,7 +3,7 @@
 class FenyDB
 {
     private $path;
-    private $non_indexed_types = ['image'];
+    private $non_indexed_types = ['image', 'array'];
     public function __construct($path)
     {
         $this->path = $path;
