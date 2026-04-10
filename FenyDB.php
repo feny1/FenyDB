@@ -104,6 +104,7 @@ class FenyDB
 
         $oldData = json_decode(file_get_contents($filePath), true);
         $structure = json_decode(file_get_contents($tablePath . '/structure.json'), true);
+        $data = array_intersect_key($data, $structure);
 
         // Merge partial data with old data to preserve existing fields
         $data['id'] = (int) $id;
