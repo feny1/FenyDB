@@ -154,7 +154,12 @@ class FenyDB
                 continue;
             }
             $column = json_decode(file_get_contents($indexPath), true);
-            unset($column['index'][$value]);
+            if (isset($column['index'][$value])) {
+                $column['index'][$value] = array_values(array_diff($column['index'][$value], [$id]));
+                if (empty($column['index'][$value])) {
+                    unset($column['index'][$value]);
+                }
+            }
             file_put_contents($indexPath, json_encode($column));
         }
         return true;
