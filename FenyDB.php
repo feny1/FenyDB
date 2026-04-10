@@ -114,15 +114,15 @@ class FenyDB
 
         // Update indexes only for modified columns present in $data
         foreach ($data as $key => $newValue) {
-            if (isset($structure[$key]) && isset($oldData[$key]) && $oldData[$key] != $newValue) {
+            if (isset($structure[$key]) && (!isset($oldData[$key]) || $oldData[$key] != $newValue)) {
                 if ($structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
                     $indexPath = $tablePath . '/index/' . $key . '.json';
                     if (is_file($indexPath)) {
                         $column = json_decode(file_get_contents($indexPath), true);
-                        $oldValue = $oldData[$key];
 
-                        // Remove ID from old index value
-                        if (isset($column['index'][$oldValue])) {
+                        // Remove ID from old index value (if it existed)
+                        if (isset($oldData[$key]) && isset($column['index'][$oldData[$key]])) {
+                            $oldValue = $oldData[$key];
                             $column['index'][$oldValue] = array_values(array_diff($column['index'][$oldValue], [$id]));
                             if (empty($column['index'][$oldValue])) {
                                 unset($column['index'][$oldValue]);
