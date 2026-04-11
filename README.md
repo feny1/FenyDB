@@ -1,20 +1,20 @@
-# 🧬 FenyDB - High Performance, Scalable JSON Database
+# FenyDB - High Performance, Scalable JSON Database
 
 FenyDB is a next-generation, lightweight flat-file JSON database engine for PHP. Designed for developers who need the simplicity of JSON storage with the scalability of a professional database structure. 
 
 This "Fresh Version" introduces a **Scalable Fan-out Indexing Architecture** and **Memory-Optimized Data Streaming**.
 
-## ✨ Key Features
+## Key Features
 
-- **🚀 Scalable Indexing**: Uses a 4-level deep hierarchical hashing structure (Fan-out) to prevent directory congestion and maintain speed with millions of records.
-- **⚡ Memory Efficient**: `getAll()` uses PHP Generators to stream data, allowing you to process massive datasets without hitting memory limits.
-- **💎 Zero Dependency**: Pure PHP. No extensions, no SQL servers, no configuration.
-- **🛠️ Self-Managing Metadata**: Automatic handling of `id`, `created_at`, and `updated_at` timestamps.
-- **🔒 Thread Safe**: Built-in file locking for sequence management to ensure data integrity during concurrent inserts.
+- **Scalable Indexing**: Uses a 4-level deep hierarchical hashing structure (Fan-out) to prevent directory congestion and maintain speed with millions of records.
+- **Memory Efficient**: `getAll()` uses PHP Generators to stream data, allowing you to process massive datasets without hitting memory limits.
+- **Zero Dependency**: Pure PHP. No extensions, no SQL servers, no configuration.
+- **Self-Managing Metadata**: Automatic handling of `id`, `created_at`, and `updated_at` timestamps.
+- **Thread Safe**: Built-in file locking for sequence management to ensure data integrity during concurrent inserts.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Initialization
 ```php
@@ -42,9 +42,9 @@ $db->createColumn('users', 'bio', 'text', false); // Non-indexed
 
 ---
 
-## 📋 API Reference
+## API Reference
 
-### ➕ Inserting Data
+### Inserting Data
 Data is automatically sanitized to match your table's structure.
 
 ```php
@@ -55,7 +55,7 @@ $userId = $db->insert('users', [
 ]);
 ```
 
-### 🔍 querying & Searching
+### Querying & Searching
 Search returns an array of matching IDs.
 
 ```php
@@ -68,7 +68,7 @@ if (!empty($ids)) {
 }
 ```
 
-### 📦 Streaming Data
+### Streaming Data
 Process large datasets efficiently with Generators.
 
 ```php
@@ -81,7 +81,7 @@ foreach ($db->getAll('users') as $user) {
 > [!NOTE]
 > **Performance Note**: `getAll()` no longer returns a standard array. It returns a `Generator`, so you must iterate over it using a loop.
 
-### 🔄 Updates & Deletions
+### Updates & Deletions
 ```php
 // Update by ID
 $db->update('users', 1, ['username' => 'feny_user']);
@@ -92,7 +92,7 @@ $db->delete('users', 1);
 
 ---
 
-## 📂 Scalable Directory Structure
+## Scalable Directory Structure
 
 FenyDB organizes data using a sophisticated "Fan-out" strategy to maintain filesystem performance:
 
@@ -116,7 +116,7 @@ FenyDB organizes data using a sophisticated "Fan-out" strategy to maintain files
 
 ---
 
-## ⚖️ License
+## License
 
 MIT License. Crafted with ❤️ for PHP Developers.
 
