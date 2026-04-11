@@ -1,181 +1,122 @@
-# FenyDB - Lightweight JSON File-Based Database
+# 🧬 FenyDB - High Performance, Scalable JSON Database
 
-FenyDB is a simple, high-performance flat-file JSON database engine for PHP. Ideal for small projects, prototypes, or applications that need a no-SQL solution without the overhead of a dedicated database server.
+FenyDB is a next-generation, lightweight flat-file JSON database engine for PHP. Designed for developers who need the simplicity of JSON storage with the scalability of a professional database structure. 
+
+This "Fresh Version" introduces a **Scalable Fan-out Indexing Architecture** and **Memory-Optimized Data Streaming**.
 
 ## ✨ Key Features
 
-- **Zero Dependency**: Pure PHP, no extra extensions or servers required.
-- **Fast Lookups**: Uses inverted indexing for O(1) searches on specific columns.
-- **Human Readable**: Transparent storage in standard JSON files.
-- **Automatic Metadata**: Handles `id`, `created_at`, and `updated_at` automatically.
-- **Simple Migration**: Moving data is as easy as copying folders.
+- **🚀 Scalable Indexing**: Uses a 4-level deep hierarchical hashing structure (Fan-out) to prevent directory congestion and maintain speed with millions of records.
+- **⚡ Memory Efficient**: `getAll()` uses PHP Generators to stream data, allowing you to process massive datasets without hitting memory limits.
+- **💎 Zero Dependency**: Pure PHP. No extensions, no SQL servers, no configuration.
+- **🛠️ Self-Managing Metadata**: Automatic handling of `id`, `created_at`, and `updated_at` timestamps.
+- **🔒 Thread Safe**: Built-in file locking for sequence management to ensure data integrity during concurrent inserts.
 
 ---
 
-## 🚀 Installation & Initialization
+## 🚀 Quick Start
 
-Simply include the `FenyDB.php` file in your project.
-
+### 1. Initialization
 ```php
 require_once 'FenyDB.php';
 
-// Initialize the database in a specific directory
-$db = new FenyDB('my_database');
+// Initialize the database in your storage directory
+$db = new FenyDB('storage/app_data');
 ```
+
+### 2. Define Your Architecture
+Define tables and columns. FenyDB supports both indexed and non-indexed columns.
+
+```php
+// Create a table
+$db->createTable('users');
+
+// Define columns: (table, name, type, is_indexed)
+$db->createColumn('users', 'username', 'string', true);
+$db->createColumn('users', 'email', 'string', true);
+$db->createColumn('users', 'bio', 'text', false); // Non-indexed
+```
+
+> [!TIP]
+> **Indexing Strategy**: Mark frequently searched columns as `is_indexed = true`. FenyDB's new hierarchical structure makes these searches O(1) even at scale.
 
 ---
 
-## 📋 API Reference & Examples
+## 📋 API Reference
 
-### 1. Table & Database Management
-
-Manage your database structure easily.
-
-```php
-// Create a new table
-$db->createTable('users');
-
-// Drop a table (deletes all data)
-$db->dropTable('old_logs');
-
-// Delete the entire database directory
-$db->dropDatabase();
-```
-
-### 2. Column & Index Definition
-
-Indexing is crucial for performance. You can define which columns should be indexed.
-
-```php
-// Parameters: (tableName, columnName, type, is_indexed)
-$db->createColumn('users', 'username', 'string', true);
-$db->createColumn('users', 'email', 'string', true);
-$db->createColumn('users', 'bio', 'text', false); // No index for bio
-$db->createColumn('users', 'profile_pic', 'image', false); // Arrays and images are not indexable
-```
-
-### 3. Inserting Data
-
-Data is sanitized according to the structure defined by your columns.
+### ➕ Inserting Data
+Data is automatically sanitized to match your table's structure.
 
 ```php
 $userId = $db->insert('users', [
     'username' => 'antigravity',
-    'email' => 'ai@example.com',
-    'bio' => 'Coding assistant extraordinaire',
-    'extra_field' => 'This will be ignored' // Only defined columns are saved
+    'email' => 'ai@feny.dev',
+    'bio' => 'Building the future of coding.'
 ]);
-
-echo "Created user with ID: " . $userId;
 ```
 
-### 4. Reading Data
-
-Retrieve data by ID or fetch all records.
-
-```php
-// Fetch a single record by its ID
-$user = $db->findById('users', 1);
-
-// Fetch all records from a table
-$allUsers = $db->getAll('users');
-```
-
-### 5. Querying (Indexed Search)
-
-Search for records efficiently using indexes.
+### 🔍 querying & Searching
+Search returns an array of matching IDs.
 
 ```php
-// find() returns an array of IDs matching the value
+// Fast lookup using hierarchical index
 $ids = $db->find('users', 'username', 'antigravity');
 
 if (!empty($ids)) {
     $user = $db->findById('users', $ids[0]);
+    echo "Welcome back, " . $user['username'];
 }
 ```
 
-### 6. Updating Records
-
-Updates are handled by ID. Indexes are automatically updated if the value changes.
+### 📦 Streaming Data
+Process large datasets efficiently with Generators.
 
 ```php
-$db->update('users', 1, [
-    'username' => 'antigravity_pro',
-    'email' => 'ai@example.com',
-    'bio' => 'Upgraded coding assistant'
-]);
+// getAll() retrieves data one by one to save memory
+foreach ($db->getAll('users') as $user) {
+    echo "Processing: " . $user['id'] . "\n";
+}
 ```
 
-### 7. Deleting Records
+> [!NOTE]
+> **Performance Note**: `getAll()` no longer returns a standard array. It returns a `Generator`, so you must iterate over it using a loop.
 
-Deleting a record also cleans up related entries in the indexes.
-
+### 🔄 Updates & Deletions
 ```php
+// Update by ID
+$db->update('users', 1, ['username' => 'feny_user']);
+
+// Delete by ID
 $db->delete('users', 1);
 ```
 
 ---
 
-## 🏆 Full Example Scenario
+## 📂 Scalable Directory Structure
 
-Here is a complete workflow for managing a simple blog system.
-
-```php
-require_once 'FenyDB.php';
-$db = new FenyDB('blog_data');
-
-// Setup
-$db->createTable('posts');
-$db->createColumn('posts', 'title', 'string', true);
-$db->createColumn('posts', 'author', 'string', true);
-$db->createColumn('posts', 'content', 'text', false);
-
-// Create
-$postId = $db->insert('posts', [
-    'title' => 'The Future of AI',
-    'author' => 'Alice',
-    'content' => 'AI is evolving rapidly...'
-]);
-
-// Search
-$authoredByAlice = $db->find('posts', 'author', 'Alice');
-
-// Display
-foreach ($authoredByAlice as $id) {
-    $post = $db->findById('posts', $id);
-    echo "Title: " . $post['title'] . "\n";
-}
-
-// Update
-$db->update('posts', $postId, [
-    'title' => 'The Future of AI (Updated)',
-    'author' => 'Alice',
-    'content' => 'Revised content.'
-]);
-
-// Cleanup
-// $db->dropDatabase();
-```
-
----
-
-## 📂 Internal Directory Structure
-
-FenyDB maintains the following structure for efficiency:
+FenyDB organizes data using a sophisticated "Fan-out" strategy to maintain filesystem performance:
 
 ```text
-/my_database
-  /posts
-    1.json           # Record data
-    2.json           # Record data
-    structure.json   # Column definitions & types
+/storage/app_data
+  /users
+    /rows
+      1.json              # Direct record access
+      ...
+    /metadata
+      structure.json      # Column definitions
+      sequence.json       # Auto-increment lock
     /index
-      title.json     # Inverted index for 'title'
-      author.json    # Inverted index for 'author'
+      /username
+        /a1               # Prefix level 1
+          /b2             # Prefix level 2
+            /c3           # Prefix level 3
+              /d4         # Prefix level 4
+                hash.json # Shared index file
 ```
 
 ---
 
 ## ⚖️ License
 
-MIT License. Free to use and modify.
+MIT License. Crafted with ❤️ for PHP Developers.
+
