@@ -80,7 +80,7 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't insert into a table that doesn't exist!");
         }
-        $structure = json_decode(file_get_contents($tablePath . '/structure.json'), true);
+        $structure = $this->getStructure($tableName);
         $_data = array_intersect_key($data, $structure);
         if ($_data != $data) {
             $diff = array_diff_key($data, $structure);
@@ -115,7 +115,7 @@ class FenyDB
         $data['updated_at'] = date('Y-m-d H:i:s');
         $oldData = json_decode(file_get_contents($filePath), true);
         file_put_contents($filePath, json_encode($data));
-        $structure = json_decode(file_get_contents($tablePath . '/structure.json'), true);
+        $structure = $this->getStructure($tableName);
 
         // if indexed update
         foreach ($oldData as $key => $value) {
