@@ -192,12 +192,8 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get all rows from a table that doesn't exist!");
         }
-        $files = scandir($tablePath);
-        $results = [];
-        foreach ($files as $file) {
-            if (is_file($tablePath . '/' . $file)) {
-                $results[] = json_decode(file_get_contents($tablePath . '/' . $file), true);
-            }
+        foreach ($this->dirReadAll("$tablePath/data") as $file) {
+            $results[] = $this->readJsonFile("$tablePath/data/$file");
         }
         return $results;
     }
@@ -234,7 +230,7 @@ class FenyDB
             throw new Exception("$this->tag, Directory $dir: You can't delete a directory that doesn't exist!");
         }
 
-        $files = scandir($dir);
+        $files = $this->dirReadAll($dir);
         foreach ($files as $file) {
             if ($file != '.' && $file != '..') {
                 $filePath = $dir . '/' . $file;
@@ -266,5 +262,30 @@ class FenyDB
             throw new Exception("$this->tag, Table $tableName: You can't get the structure because its json file is corrupted!");
         }
         return $structure;
+    }
+
+    private function dirReadAll($path)
+    {
+        $handle = opendir($path);
+        while (($entry = readdir($handle)) !== false) {
+            if ($entry !== '.' && $entry !== '..') {
+                yield $entry;
+            }
+        }
+    }
+
+    private function readJsonFile($filePath)
+    {
+        if (!is_file($filePath)) {
+            return null;
+        }
+        if (!is_readable($filePath)) {
+            throw new Exception("$this->tag, File $filePath: You don't have permission to read the file!");
+        }
+        $data = json_decode(file_get_contents($filePath), true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception("$this->tag, File $filePath: You can't get the data because its json file is corrupted!");
+        }
+        return $data;
     }
 }
