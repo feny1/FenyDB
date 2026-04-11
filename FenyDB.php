@@ -2,6 +2,7 @@
 
 class FenyDB
 {
+    private $tag = "FenyDB";
     private $path;
     private $non_indexed_types = ['image', 'array'];
     public function __construct($path)
@@ -11,6 +12,13 @@ class FenyDB
         if (!is_dir($path)) {
             mkdir($path, 0777, true);
         }
+        if (!is_writable($path)) {
+            throw new Exception("$this->tag: You don't have permission to write to the database!");
+        }
+        if (!is_readable($path)) {
+            throw new Exception("$this->tag: You don't have permission to read from the database!");
+        }
+
     }
 
     public function dropDatabase()
@@ -24,6 +32,8 @@ class FenyDB
         $tablePath = $this->path . '/' . $name;
         if (!is_dir($tablePath)) {
             mkdir($tablePath, 0777, true);
+        } else {
+            throw new Exception("$this->tag, Table $name: You can't create a table that already exists!");
         }
         if (!is_dir($tablePath . '/index')) {
             mkdir($tablePath . '/index', 0777, true);
@@ -36,6 +46,8 @@ class FenyDB
         $tablePath = $this->path . '/' . $name;
         if (is_dir($tablePath)) {
             $this->deleteDirectory($tablePath);
+        } else {
+            throw new Exception("$this->tag, Table $name: You can't drop a table that doesn't exist!");
         }
     }
 
@@ -43,16 +55,14 @@ class FenyDB
     {
         $tablePath = $this->path . '/' . $tableName . '/index';
         if (!is_dir($tablePath)) {
-            mkdir($tablePath, 0777, true);
+            throw new Exception("$this->tag, Table $tableName: You can't create a column in a table that doesn't exist!");
         }
         if (!in_array($type, $this->non_indexed_types) && $is_indexed) {
-            // create json {type="", index={}}
             $columnPath = $tablePath . '/' . $columnName . '.json';
             if (!is_file($columnPath)) {
                 file_put_contents($columnPath, json_encode(array('type' => $type, 'index' => array())));
             }
         }
-        // write the object structure columns in json file called structure.json
         $structurePath = $this->path . '/' . $tableName . '/structure.json';
         if (!is_file($structurePath)) {
             file_put_contents($structurePath, json_encode(array()));
@@ -68,14 +78,18 @@ class FenyDB
         $tablePath = $this->path . '/' . $tableName;
         $indexTablePath = $tablePath . '/index';
         if (!is_dir($tablePath)) {
-            return false;
+            throw new Exception("$this->tag, Table $tableName: You can't insert into a table that doesn't exist!");
         }
         $structure = json_decode(file_get_contents($tablePath . '/structure.json'), true);
-        $data = array_intersect_key($data, $structure);
-        $data['id'] = $this->getNextId($tableName);
-        $data['created_at'] = date('Y-m-d H:i:s');
-        $data['updated_at'] = date('Y-m-d H:i:s');
-        file_put_contents($tablePath . '/' . $data['id'] . '.json', json_encode($data));
+        $_data = array_intersect_key($data, $structure);
+        if ($_data != $data) {
+            $diff = array_diff_key($data, $structure);
+            throw new Exception("$this->tag, Table $tableName: You can't insert into a table with columns that don't exist. Columns: [" . implode(", ", $diff) . "] don't exist!");
+        }
+        $_data['id'] = $this->getNextId($tableName);
+        $_data['created_at'] = date('Y-m-d H:i:s');
+        $_data['updated_at'] = date('Y-m-d H:i:s');
+        file_put_contents($tablePath . '/' . $_data['id'] . '.json', json_encode($_data));
         foreach ($structure as $key => $columnDef) {
             if (!in_array($columnDef['type'], $this->non_indexed_types) && $columnDef['is_indexed']) {
                 $columnPath = $indexTablePath . '/' . $key . '.json';
@@ -95,7 +109,7 @@ class FenyDB
         $tablePath = $this->path . '/' . $tableName;
         $filePath = $tablePath . '/' . $id . '.json';
         if (!is_file($filePath)) {
-            return false;
+            throw new Exception("$this->tag, Table $tableName: You can't update a row that doesn't exist!");
         }
         $data['id'] = (int) $id;
         $data['updated_at'] = date('Y-m-d H:i:s');
@@ -124,7 +138,7 @@ class FenyDB
         $tablePath = $this->path . '/' . $tableName;
         $filePath = $tablePath . '/' . $id . '.json';
         if (!is_file($filePath)) {
-            return false;
+            throw new Exception("$this->tag, Table $tableName: You can't delete a row that doesn't exist!");
         }
         $data = json_decode(file_get_contents($filePath), true);
         unlink($filePath);
@@ -145,6 +159,11 @@ class FenyDB
         $tablePath = $this->path . '/' . $tableName . '/index';
         $columnPath = $tablePath . '/' . $columnName . '.json';
         if (!is_file($columnPath)) {
+            foreach ($this->getAll($tableName) as $row) {
+                if ($row[$columnName] == $value) {
+                    return $row['id'];
+                }
+            }
             return [];
         }
         $column = json_decode(file_get_contents($columnPath), true);
@@ -157,6 +176,9 @@ class FenyDB
     public function findById($tableName, $id)
     {
         $tablePath = $this->path . '/' . $tableName;
+        if (!is_dir($tablePath)) {
+            throw new Exception("$this->tag, Table $tableName: You can't find a row in a table that doesn't exist!");
+        }
         $filePath = $tablePath . '/' . $id . '.json';
         if (!is_file($filePath)) {
             return [];
@@ -168,7 +190,7 @@ class FenyDB
     {
         $tablePath = $this->path . '/' . $tableName;
         if (!is_dir($tablePath)) {
-            return [];
+            throw new Exception("$this->tag, Table $tableName: You can't get all rows from a table that doesn't exist!");
         }
         $files = scandir($tablePath);
         $results = [];
@@ -184,7 +206,7 @@ class FenyDB
     {
         $tablePath = $this->path . '/' . $tableName;
         if (!is_dir($tablePath)) {
-            return 1;
+            throw new Exception("$this->tag, Table $tableName: You can't get the next id from a table that doesn't exist!");
         }
         $files = scandir($tablePath);
         $maxId = 0;
@@ -202,7 +224,7 @@ class FenyDB
     private function deleteDirectory($dir)
     {
         if (!is_dir($dir)) {
-            return;
+            throw new Exception("$this->tag, Directory $dir: You can't delete a directory that doesn't exist!");
         }
 
         $files = scandir($dir);
@@ -217,5 +239,25 @@ class FenyDB
             }
         }
         rmdir($dir);
+    }
+
+    private function getStructure($tableName)
+    {
+        $tablePath = $this->path . '/' . $tableName;
+        if (!is_dir($tablePath)) {
+            throw new Exception("$this->tag, Table $tableName: You can't get the structure from a table that doesn't exist!");
+        }
+        $structurePath = $tablePath . '/structure.json';
+        if (!is_file($structurePath)) {
+            throw new Exception("$this->tag, Table $tableName: You can't get the structure that its json file is not found!");
+        }
+        if (!is_readable($structurePath)) {
+            throw new Exception("$this->tag, Table $tableName: You don't have permission to read the structure from the table!");
+        }
+        $structure = json_decode(file_get_contents($structurePath), true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception("$this->tag, Table $tableName: You can't get the structure because its json file is corrupted!");
+        }
+        return $structure;
     }
 }
