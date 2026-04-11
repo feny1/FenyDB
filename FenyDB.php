@@ -63,7 +63,7 @@ class FenyDB
                 file_put_contents($columnPath, json_encode(array('type' => $type, 'index' => array())));
             }
         }
-        $structurePath = $this->path . '/' . $tableName . '/structure.json';
+        $structurePath = $this->path . '/' . $tableName . '/metadata/structure.json';
         if (!is_file($structurePath)) {
             file_put_contents($structurePath, json_encode(array()));
         }
@@ -195,7 +195,7 @@ class FenyDB
         $files = scandir($tablePath);
         $results = [];
         foreach ($files as $file) {
-            if ($file != '.' && $file != '..' && $file != 'index' && $file != 'structure.json' && is_file($tablePath . '/' . $file)) {
+            if (is_file($tablePath . '/' . $file)) {
                 $results[] = json_decode(file_get_contents($tablePath . '/' . $file), true);
             }
         }
@@ -208,7 +208,7 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get the next id from a table that doesn't exist!");
         }
-        $sequencePath = $tablePath . '/sequence.json';
+        $sequencePath = $tablePath . '/metadata/sequence.json';
         $fileHandle = fopen($sequencePath, 'c+');
         if (!$fileHandle) {
             throw new Exception("$this->tag, Table $tableName: There's a problem with the sequence.json file!");
@@ -254,7 +254,7 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get the structure from a table that doesn't exist!");
         }
-        $structurePath = $tablePath . '/structure.json';
+        $structurePath = $tablePath . '/metadata/structure.json';
         if (!is_file($structurePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get the structure that its json file is not found!");
         }
