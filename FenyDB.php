@@ -92,16 +92,10 @@ class FenyDB
         file_put_contents($tablePath . '/rows/' . $_data['id'] . '.json', json_encode($_data));
         foreach ($structure as $key => $columnDef) {
             if (!in_array($columnDef['type'], $this->non_indexed_types) && $columnDef['is_indexed']) {
-                $columnPath = $indexTablePath . '/' . $key . '.json';
-                if (!is_file($columnPath)) {
-                    file_put_contents($columnPath, json_encode(array('type' => $columnDef['type'], 'index' => array())));
-                }
-                $column = json_decode(file_get_contents($columnPath), true);
-                $column['index'][$data[$key]][] = $data['id'];
-                file_put_contents($columnPath, json_encode($column));
+                $this->insertIndex($tableName, $key, $data[$key], $_data['id']);
             }
         }
-        return $data['id'];
+        return $_data['id'];
     }
 
     public function insertIndex($tableName, $columnName, $value, $row_id)
@@ -117,7 +111,7 @@ class FenyDB
         $indexPath = $tablePath . '/index/' . $columnName . '/' . $firstSharedPrefix . '/' . $secondSharedPrefix . '/' . $thirdSharedPrefix . '/' . $fourthSharedPrefix;
 
         if (!is_dir($indexPath)) {
-            mkdir($indexPath);
+            mkdir($indexPath, 0777, true);
         }
 
         $sharedFile = $indexPath . '/' . $hash . '.json';
@@ -125,6 +119,36 @@ class FenyDB
         $sharedData = is_file($sharedFile) ? $this->readJsonFile($sharedFile) : [];
         $sharedData[$value][] = $row_id;
         file_put_contents($sharedFile, json_encode($sharedData));
+    }
+
+    public function deleteIndex($tableName, $columnName, $value, $row_id)
+    {
+        $tablePath = $this->path . '/' . $tableName;
+
+        $hash = md5($value);
+        $firstSharedPrefix = substr($hash, 0, 2);
+        $secondSharedPrefix = substr($hash, 2, 2);
+        $thirdSharedPrefix = substr($hash, 4, 2);
+        $fourthSharedPrefix = substr($hash, 6, 2);
+
+        $indexPath = $tablePath . '/index/' . $columnName . '/' . $firstSharedPrefix . '/' . $secondSharedPrefix . '/' . $thirdSharedPrefix . '/' . $fourthSharedPrefix;
+
+        $sharedFile = $indexPath . '/' . $hash . '.json';
+
+        if (is_file($sharedFile)) {
+            $sharedData = $this->readJsonFile($sharedFile);
+            if (isset($sharedData[$value])) {
+                $sharedData[$value] = array_values(array_diff($sharedData[$value], [$row_id]));
+                if (empty($sharedData[$value])) {
+                    unset($sharedData[$value]);
+                }
+            }
+            if (empty($sharedData)) {
+                unlink($sharedFile);
+            } else {
+                file_put_contents($sharedFile, json_encode($sharedData));
+            }
+        }
     }
 
     public function update($tableName, $id, $data)
@@ -143,14 +167,8 @@ class FenyDB
         // if indexed update
         foreach ($oldData as $key => $value) {
             if (isset($structure[$key]) && $oldData[$key] != $data[$key] && $structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
-                $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
-                if (!is_file($indexPath)) {
-                    continue;
-                }
-                $column = json_decode(file_get_contents($indexPath), true);
-                unset($column['index'][$oldData[$key]]);
-                $column['index'][$data[$key]][] = $data['id'];
-                file_put_contents($indexPath, json_encode($column));
+                $this->deleteIndex($tableName, $key, $oldData[$key], (int) $id);
+                $this->insertIndex($tableName, $key, $data[$key], (int) $id);
             }
         }
         return true;
@@ -166,13 +184,10 @@ class FenyDB
         $data = json_decode(file_get_contents($filePath), true);
         unlink($filePath);
         foreach ($data as $key => $value) {
-            $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
-            if (!is_file($indexPath)) {
-                continue;
+            $structure = $this->getStructure($tableName);
+            if (isset($structure[$key]) && $structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
+                $this->deleteIndex($tableName, $key, $value, (int) $id);
             }
-            $column = json_decode(file_get_contents($indexPath), true);
-            unset($column['index'][$value]);
-            file_put_contents($indexPath, json_encode($column));
         }
         return true;
     }
