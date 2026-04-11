@@ -208,17 +208,24 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get the next id from a table that doesn't exist!");
         }
-        $files = scandir($tablePath);
-        $maxId = 0;
-        foreach ($files as $file) {
-            if ($file != '.' && $file != '..') {
-                $filePath = $tablePath . '/' . $file;
-                if (is_file($filePath)) {
-                    $maxId = max($maxId, (int) $file);
-                }
-            }
+        $sequencePath = $tablePath . '/sequence.json';
+        $fileHandle = fopen($sequencePath, 'c+');
+        if (!$fileHandle) {
+            throw new Exception("$this->tag, Table $tableName: There's a problem with the sequence.json file!");
         }
-        return $maxId + 1;
+        if (flock($fileHandle, LOCK_EX)) {
+            $fileSize = filesize($sequencePath);
+            $currentId = $fileSize > 0 ? (int) fread($fileHandle, $fileSize) : 0;
+            $nextId = $currentId + 1;
+            ftruncate($fileHandle, 0);
+            rewind($fileHandle);
+            fwrite($fileHandle, (string) $nextId);
+            flock($fileHandle, LOCK_UN);
+            fclose($fileHandle);
+            return $nextId;
+        } else {
+            throw new Exception("$this->tag, Table $tableName: sequence.json file is locked!");
+        }
     }
 
     private function deleteDirectory($dir)
