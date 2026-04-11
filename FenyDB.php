@@ -30,14 +30,14 @@ class FenyDB
     public function createTable($name)
     {
         $tablePath = $this->path . '/' . $name;
-        if (!is_dir($tablePath)) {
-            mkdir($tablePath, 0777, true);
-        } else {
+        if (is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $name: You can't create a table that already exists!");
         }
-        if (!is_dir($tablePath . '/index')) {
-            mkdir($tablePath . '/index', 0777, true);
-        }
+
+        // Explicitly build the entire architecture immediately
+        mkdir($tablePath . '/rows', 0777, true);
+        mkdir($tablePath . '/metadata', 0777, true);
+        mkdir($tablePath . '/index', 0777, true);
     }
 
     public function dropTable($name)
@@ -89,7 +89,7 @@ class FenyDB
         $_data['id'] = $this->getNextId($tableName);
         $_data['created_at'] = date('Y-m-d H:i:s');
         $_data['updated_at'] = date('Y-m-d H:i:s');
-        file_put_contents($tablePath . '/' . $_data['id'] . '.json', json_encode($_data));
+        file_put_contents($tablePath . '/rows/' . $_data['id'] . '.json', json_encode($_data));
         foreach ($structure as $key => $columnDef) {
             if (!in_array($columnDef['type'], $this->non_indexed_types) && $columnDef['is_indexed']) {
                 $columnPath = $indexTablePath . '/' . $key . '.json';
@@ -104,10 +104,33 @@ class FenyDB
         return $data['id'];
     }
 
+    public function insertIndex($tableName, $columnName, $value, $row_id)
+    {
+        $tablePath = $this->path . '/' . $tableName;
+
+        $hash = md5($value);
+        $firstSharedPrefix = substr($hash, 0, 2);
+        $secondSharedPrefix = substr($hash, 2, 2);
+        $thirdSharedPrefix = substr($hash, 4, 2);
+        $fourthSharedPrefix = substr($hash, 6, 2);
+
+        $indexPath = $tablePath . '/index/' . $columnName . '/' . $firstSharedPrefix . '/' . $secondSharedPrefix . '/' . $thirdSharedPrefix . '/' . $fourthSharedPrefix;
+
+        if (!is_dir($indexPath)) {
+            mkdir($indexPath);
+        }
+
+        $sharedFile = $indexPath . '/' . $hash . '.json';
+
+        $sharedData = is_file($sharedFile) ? $this->readJsonFile($sharedFile) : [];
+        $sharedData[$value][] = $row_id;
+        file_put_contents($sharedFile, json_encode($sharedData));
+    }
+
     public function update($tableName, $id, $data)
     {
         $tablePath = $this->path . '/' . $tableName;
-        $filePath = $tablePath . '/' . $id . '.json';
+        $filePath = $tablePath . '/rows/' . $id . '.json';
         if (!is_file($filePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't update a row that doesn't exist!");
         }
@@ -136,7 +159,7 @@ class FenyDB
     public function delete($tableName, $id)
     {
         $tablePath = $this->path . '/' . $tableName;
-        $filePath = $tablePath . '/' . $id . '.json';
+        $filePath = $tablePath . '/rows/' . $id . '.json';
         if (!is_file($filePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't delete a row that doesn't exist!");
         }
@@ -157,20 +180,24 @@ class FenyDB
     public function find($tableName, $columnName, $value)
     {
         $tablePath = $this->path . '/' . $tableName . '/index';
-        $columnPath = $tablePath . '/' . $columnName . '.json';
-        if (!is_file($columnPath)) {
-            foreach ($this->getAll($tableName) as $row) {
-                if ($row[$columnName] == $value) {
-                    return $row['id'];
-                }
-            }
+
+        $hash = md5($value);
+        $firstSharedPrefix = substr($hash, 0, 2);
+        $secondSharedPrefix = substr($hash, 2, 2);
+        $thirdSharedPrefix = substr($hash, 4, 2);
+        $fourthSharedPrefix = substr($hash, 6, 2);
+
+        $indexPath = $tablePath . '/' . $columnName . '/' . $firstSharedPrefix . '/' . $secondSharedPrefix . '/' . $thirdSharedPrefix . '/' . $fourthSharedPrefix;
+
+        if (!is_dir($indexPath)) {
             return [];
         }
-        $column = json_decode(file_get_contents($columnPath), true);
-        if (!isset($column['index'][$value])) {
-            return [];
-        }
-        return $column['index'][$value];
+
+        $sharedFile = $indexPath . '/' . $hash . '.json';
+
+        $sharedData = is_file($sharedFile) ? $this->readJsonFile($sharedFile) : [];
+
+        return $sharedData[$value] ?? [];
     }
 
     public function findById($tableName, $id)
@@ -179,7 +206,7 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't find a row in a table that doesn't exist!");
         }
-        $filePath = $tablePath . '/' . $id . '.json';
+        $filePath = $tablePath . '/rows/' . $id . '.json';
         if (!is_file($filePath)) {
             return [];
         }
@@ -192,10 +219,9 @@ class FenyDB
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get all rows from a table that doesn't exist!");
         }
-        foreach ($this->dirReadAll("$tablePath/data") as $file) {
-            $results[] = $this->readJsonFile("$tablePath/data/$file");
+        foreach ($this->dirReadAll("$tablePath/rows") as $file) {
+            yield $this->readJsonFile("$tablePath/rows/$file");
         }
-        return $results;
     }
 
     private function getNextId($tableName)
@@ -274,6 +300,7 @@ class FenyDB
         }
     }
 
+
     private function readJsonFile($filePath)
     {
         if (!is_file($filePath)) {
@@ -288,4 +315,5 @@ class FenyDB
         }
         return $data;
     }
+
 }
