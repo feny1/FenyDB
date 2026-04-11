@@ -96,9 +96,13 @@ class FenyDB
                 if (!is_file($columnPath)) {
                     file_put_contents($columnPath, json_encode(array('type' => $columnDef['type'], 'index' => array())));
                 }
-                $column = json_decode(file_get_contents($columnPath), true);
-                $column['index'][$data[$key]][] = $data['id'];
-                file_put_contents($columnPath, json_encode($column));
+                
+                $valueToIndex = $data[$key] ?? null;
+                if ($valueToIndex !== null) {
+                    $column = json_decode(file_get_contents($columnPath), true);
+                    $column['index'][$valueToIndex][] = $data['id'];
+                    file_put_contents($columnPath, json_encode($column));
+                }
             }
         }
         return $data['id'];
@@ -111,23 +115,39 @@ class FenyDB
         if (!is_file($filePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't update a row that doesn't exist!");
         }
-        $data['id'] = (int) $id;
-        $data['updated_at'] = date('Y-m-d H:i:s');
+
         $oldData = json_decode(file_get_contents($filePath), true);
-        file_put_contents($filePath, json_encode($data));
         $structure = json_decode(file_get_contents($tablePath . '/structure.json'), true);
 
-        // if indexed update
-        foreach ($oldData as $key => $value) {
-            if (isset($structure[$key]) && $oldData[$key] != $data[$key] && $structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
-                $indexPath = $this->path . '/' . $tableName . '/index/' . $key . '.json';
-                if (!is_file($indexPath)) {
-                    continue;
+        // Merge partial data with old data to preserve existing fields
+        $data['id'] = (int) $id;
+        $data['updated_at'] = date('Y-m-d H:i:s');
+        $mergedData = array_merge($oldData, $data);
+
+        file_put_contents($filePath, json_encode($mergedData));
+
+        // Update indexes only for modified columns present in $data
+        foreach ($data as $key => $newValue) {
+            if (isset($structure[$key]) && (!isset($oldData[$key]) || $oldData[$key] != $newValue)) {
+                if ($structure[$key]['is_indexed'] && !in_array($structure[$key]['type'], $this->non_indexed_types)) {
+                    $indexPath = $tablePath . '/index/' . $key . '.json';
+                    if (is_file($indexPath)) {
+                        $column = json_decode(file_get_contents($indexPath), true);
+
+                        // Remove ID from old index value (if it existed)
+                        if (isset($oldData[$key]) && isset($column['index'][$oldData[$key]])) {
+                            $oldValue = $oldData[$key];
+                            $column['index'][$oldValue] = array_values(array_diff($column['index'][$oldValue], [$id]));
+                            if (empty($column['index'][$oldValue])) {
+                                unset($column['index'][$oldValue]);
+                            }
+                        }
+
+                        // Add ID to new index value
+                        $column['index'][$newValue][] = (int) $id;
+                        file_put_contents($indexPath, json_encode($column));
+                    }
                 }
-                $column = json_decode(file_get_contents($indexPath), true);
-                unset($column['index'][$oldData[$key]]);
-                $column['index'][$data[$key]][] = $data['id'];
-                file_put_contents($indexPath, json_encode($column));
             }
         }
         return true;
@@ -186,12 +206,31 @@ class FenyDB
         return json_decode(file_get_contents($filePath), true);
     }
 
-    public function getAll($tableName)
+    public function getAll($tableName, $index_column = null, $index_search = null)
     {
         $tablePath = $this->path . '/' . $tableName;
         if (!is_dir($tablePath)) {
             throw new Exception("$this->tag, Table $tableName: You can't get all rows from a table that doesn't exist!");
         }
+
+        if ($index_column !== null && $index_search !== null) {
+            $results = [];
+            $indexPath = $tablePath . '/index/' . $index_column . '.json';
+            if (is_file($indexPath)) {
+                $column = json_decode(file_get_contents($indexPath), true);
+                if (isset($column['index'][$index_search])) {
+                    $ids = $column['index'][$index_search];
+                    foreach ($ids as $id) {
+                        $data = $this->findById($tableName, $id);
+                        if (!empty($data)) {
+                            $results[] = $data;
+                        }
+                    }
+                }
+            }
+            return $results;
+        }
+
         $files = scandir($tablePath);
         $results = [];
         foreach ($files as $file) {
